@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Note Study</title>
+<title>Note Study v0.3</title>
 <style>
   :root{
     --bg:#f7f7fb; --card:#fff; --text:#222; --muted:#7a7a86; --line:#dedee7;
@@ -38,11 +38,26 @@
   button.answer.bad{border-color:var(--bad);background:#fff0f0;color:#a42f2f}
   .feedback{min-height:42px;margin-top:14px;text-align:center;font-weight:800}
   .feedback small{display:block;margin-top:4px;color:var(--muted);font-weight:600}
-  .controls{display:flex;gap:10px;margin-top:16px}
+  .controls{display:flex;gap:10px;margin-top:16px;position:relative}
   .control{
     flex:1;background:#fff;border:1px solid #e0e0e8;border-radius:14px;padding:10px;
     font-size:13px;font-weight:700;cursor:pointer;
   }
+  .level-wrap{flex:1;position:relative}
+  .level-wrap .control{width:100%}
+  .level-menu{
+    display:none;position:absolute;left:0;right:0;bottom:48px;z-index:20;
+    background:#fff;border:1px solid #dedee8;border-radius:16px;padding:6px;
+    box-shadow:0 12px 32px rgba(30,30,55,.16);
+  }
+  .level-menu.open{display:block}
+  .level-option{
+    width:100%;border:0;background:#fff;border-radius:11px;padding:12px 10px;
+    text-align:left;font-size:13px;font-weight:750;cursor:pointer;color:var(--text)
+  }
+  .level-option + .level-option{margin-top:2px}
+  .level-option.active{background:#f0eefc;color:var(--accent)}
+  .level-option:active{background:#f3f3f7}
   .finish{display:none;text-align:center;padding:24px 4px}
   .finish h2{font-size:28px;margin:4px 0}
   .finish .big{font-size:48px;font-weight:900;margin:12px 0}
@@ -90,11 +105,14 @@
   </div>
 
   <div class="controls">
-    <button class="control" id="levelBtn" onclick="toggleLevel()">레벨 1 · 높은음 5음</button>
+    <div class="level-wrap">
+      <button class="control" id="levelBtn" onclick="toggleLevelMenu()">난이도 · 입문 ▾</button>
+      <div class="level-menu" id="levelMenu"></div>
+    </div>
     <button class="control" id="soundBtn" onclick="toggleSound()">소리: ON</button>
   </div>
   <div class="legend" id="levelDescription">
-    Lv1: 높은음자리표의 C4~G4부터 시작합니다.<br>
+    입문: 높은음자리표 C4~G4 · 첫 5음부터 시작합니다.<br>
     정답 확인 시 <b>C4 · 도</b>처럼 음명과 계이름을 함께 표시합니다.
   </div>
 </div>
@@ -111,41 +129,67 @@ const BASS = [
   ["E",3,5],["F",3,6],["G",3,7],["A",3,8],["B",3,9],["C",4,10]
 ];
 
+function makeDiatonicRange(startName, startOct, endName, endOct, startStep){
+  const order=["C","D","E","F","G","A","B"];
+  const out=[];
+  let name=startName, oct=startOct, step=startStep;
+  while(true){
+    out.push([name,oct,step]);
+    if(name===endName && oct===endOct) break;
+    let i=order.indexOf(name)+1;
+    if(i>=7){ i=0; oct++; }
+    name=order[i]; step++;
+  }
+  return out;
+}
+
+const TREBLE_BASIC = makeDiatonicRange("C",4,"C",5,-2);
+const BASS_BASIC = makeDiatonicRange("G",2,"G",3,0);
+
+// 고난이도: 기본 1옥타브 범위에서 위/아래로 각각 1옥타브 확장
+const TREBLE_HARD = makeDiatonicRange("C",3,"C",6,-9);
+const BASS_HARD = makeDiatonicRange("G",1,"G",4,-7);
+
 const LEVELS = [
   {
-    label:"레벨 1 · 높은음 5음",
-    desc:"Lv1: 높은음자리표 C4~G4 · 첫 5음에 집중",
+    label:"입문",
+    button:"난이도 · 입문 ▾",
+    desc:"입문: 높은음자리표 C4~G4 · 첫 5음부터 시작",
     clefs:["treble"],
     treble:[["C",4,-2],["D",4,-1],["E",4,0],["F",4,1],["G",4,2]],
     bass:[]
   },
   {
-    label:"레벨 2 · 높은음 기본",
-    desc:"Lv2: 높은음자리표 C4~C5 · 한 옥타브 읽기",
+    label:"높은음자리표만",
+    button:"난이도 · 높은음자리표 ▾",
+    desc:"높은음자리표만: C4~C5 · 한 옥타브 집중 연습",
     clefs:["treble"],
-    treble:[["C",4,-2],["D",4,-1],["E",4,0],["F",4,1],["G",4,2],["A",4,3],["B",4,4],["C",5,5]],
+    treble:TREBLE_BASIC,
     bass:[]
   },
   {
-    label:"레벨 3 · 낮은음 기본",
-    desc:"Lv3: 낮은음자리표 G2~G3 · 낮은음자리표에 익숙해지기",
+    label:"낮은음자리표만",
+    button:"난이도 · 낮은음자리표 ▾",
+    desc:"낮은음자리표만: G2~G3 · 한 옥타브 집중 연습",
     clefs:["bass"],
     treble:[],
-    bass:[["G",2,0],["A",2,1],["B",2,2],["C",3,3],["D",3,4],["E",3,5],["F",3,6],["G",3,7]]
+    bass:BASS_BASIC
   },
   {
-    label:"레벨 4 · 높은+낮은",
-    desc:"Lv4: 높은음자리표와 낮은음자리표를 섞어서 출제",
+    label:"혼합",
+    button:"난이도 · 혼합 ▾",
+    desc:"혼합: 높은음자리표와 낮은음자리표를 랜덤으로 출제",
     clefs:["treble","bass"],
-    treble:[["C",4,-2],["D",4,-1],["E",4,0],["F",4,1],["G",4,2],["A",4,3],["B",4,4],["C",5,5]],
-    bass:[["G",2,0],["A",2,1],["B",2,2],["C",3,3],["D",3,4],["E",3,5],["F",3,6],["G",3,7]]
+    treble:TREBLE_BASIC,
+    bass:BASS_BASIC
   },
   {
-    label:"레벨 5 · 덧줄 포함",
-    desc:"Lv5: 높은+낮은음자리표 전체 범위 · 덧줄 음표 포함",
+    label:"고난이도",
+    button:"난이도 · 고난이도 ▾",
+    desc:"고난이도: 높은·낮은음자리표 모두 기본 범위보다 위/아래 1옥타브씩 확장",
     clefs:["treble","bass"],
-    treble:TREBLE,
-    bass:BASS
+    treble:TREBLE_HARD,
+    bass:BASS_HARD
   }
 ];
 
@@ -197,7 +241,7 @@ function makeAnswers(question){
   offsets.forEach(o=>{
     if(pool[idx+o]) picks.push(pool[idx+o]);
   });
-  while(picks.length<3){
+  while(picks.length<Math.min(3,pool.length)){
     const c=pool[Math.floor(Math.random()*pool.length)];
     if(!picks.some(x=>noteKey(x)===noteKey(c))) picks.push(c);
   }
@@ -226,9 +270,13 @@ function drawNote(qn){
       ledger += `<line x1="${x-17}" y1="${posY(s)}" x2="${x+17}" y2="${posY(s)}" stroke="#222" stroke-width="1.7"/>`;
     }
   }
+  const stemDown = n[2] >= 8;
+  const stem = stemDown
+    ? `<line x1="${x-9}" y1="${y+2}" x2="${x-9}" y2="${y+49}" stroke="#222" stroke-width="3"/>`
+    : `<line x1="${x+9}" y1="${y-2}" x2="${x+9}" y2="${y-49}" stroke="#222" stroke-width="3"/>`;
   ng.innerHTML = ledger +
     `<ellipse cx="${x}" cy="${y}" rx="10.5" ry="7.5" transform="rotate(-18 ${x} ${y})" fill="#222"/>`+
-    `<line x1="${x+9}" y1="${y-2}" x2="${x+9}" y2="${y-49}" stroke="#222" stroke-width="3"/>`;
+    stem;
 }
 
 function showQuestion(){
@@ -302,14 +350,42 @@ function startSession(){
   updateStats(); showQuestion();
 }
 
-function toggleLevel(){
-  level = (level + 1) % LEVELS.length;
-  const cfg = LEVELS[level];
-  document.getElementById("levelBtn").textContent = cfg.label;
-  document.getElementById("levelDescription").innerHTML =
+function renderLevelMenu(){
+  const menu=document.getElementById("levelMenu");
+  menu.innerHTML="";
+  LEVELS.forEach((cfg,i)=>{
+    const b=document.createElement("button");
+    b.className="level-option"+(i===level?" active":"");
+    b.textContent=cfg.label;
+    b.onclick=(e)=>{
+      e.stopPropagation();
+      selectLevel(i);
+    };
+    menu.appendChild(b);
+  });
+}
+
+function toggleLevelMenu(){
+  renderLevelMenu();
+  document.getElementById("levelMenu").classList.toggle("open");
+}
+
+function selectLevel(i){
+  level=i;
+  const cfg=LEVELS[level];
+  document.getElementById("levelBtn").textContent=cfg.button;
+  document.getElementById("levelDescription").innerHTML=
     `${cfg.desc}<br>정답 확인 시 <b>C4 · 도</b>처럼 음명과 계이름을 함께 표시합니다.`;
+  document.getElementById("levelMenu").classList.remove("open");
   startSession();
 }
+
+document.addEventListener("click",(e)=>{
+  const wrap=document.querySelector(".level-wrap");
+  if(wrap && !wrap.contains(e.target)){
+    document.getElementById("levelMenu").classList.remove("open");
+  }
+});
 
 function toggleSound(){
   soundOn=!soundOn;
